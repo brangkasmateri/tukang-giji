@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Alur Dokumentasi Dapur SPPG — Menu ke Form Kerja</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="eyebrow">Dapur → Dokumen · SPPG MBG</span>
+    <h1>Satu menu mingguan, empat dokumen kerja siap cetak</h1>
+    <p class="hero-sub">Isi menu Senin–Jumat sekali, langsung terbentuk Form Permintaan Belanja, Persiapan, Pengolahan, dan Pemorsian — unduh sebagai PDF atau Excel.</p>
+    <div class="sppg-tag">
+      <b>SPPG Pemalang Mulyoharjo 4</b>
+      <span>Badan Gizi Nasional Republik Indonesia</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- STEP 1 -->
+  <section class="step">
+    <div class="step-head">
+      <div class="step-num">1</div>
+      <div>
+        <p class="step-title">Info Minggu Berjalan</p>
+        <p class="step-desc">Dipakai sebagai kop tanggal di semua dokumen.</p>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="field-row">
+        <div class="field">
+          <label for="mingguKe">Minggu ke-</label>
+          <input type="text" id="mingguKe" placeholder="contoh: 1" />
+        </div>
+        <div class="field">
+          <label for="tanggalSenin">Tanggal Senin (awal minggu)</label>
+          <input type="date" id="tanggalSenin" />
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2 -->
+  <section class="step">
+    <div class="step-head">
+      <div class="step-num">2</div>
+      <div>
+        <p class="step-title">Isi Menu per Hari</p>
+        <p class="step-desc">Bahan &amp; hidangan tiap kategori, Senin sampai Jumat.</p>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="day-tabs" id="dayTabs"></div>
+      <div id="dayPanels"></div>
+      <p class="hint">Tips: kolom "Bahan tambahan / bumbu" untuk bahan pelengkap (bawang, kecap, minyak, dll) yang tidak masuk 5 kategori utama tapi tetap perlu dibelanjakan &amp; disiapkan.</p>
+    </div>
+  </section>
+
+  <!-- STEP 3 -->
+  <section class="step">
+    <div class="step-head">
+      <div class="step-num">3</div>
+      <div>
+        <p class="step-title">Unduh Dokumen</p>
+        <p class="step-desc">Pilih format untuk tiap form — PDF untuk cetak, Excel untuk edit lanjutan.</p>
+      </div>
+    </div>
+    <div class="step-body">
+      <div class="doc-grid">
+
+        <div class="doc-card">
+          <div class="doc-icon">B</div>
+          <h3>Form Permintaan Belanja</h3>
+          <p>Daftar bahan per hidangan per hari, siap diisi jumlah &amp; harga.</p>
+          <div class="doc-actions">
+            <button class="secondary" data-form="belanja" data-format="pdf">PDF</button>
+            <button data-form="belanja" data-format="xlsx">Excel</button>
+          </div>
+        </div>
+
+        <div class="doc-card">
+          <div class="doc-icon">P</div>
+          <h3>Form Persiapan</h3>
+          <p>Checklist bahan yang perlu dicuci, dipotong, ditimbang.</p>
+          <div class="doc-actions">
+            <button class="secondary" data-form="persiapan" data-format="pdf">PDF</button>
+            <button data-form="persiapan" data-format="xlsx">Excel</button>
+          </div>
+        </div>
+
+        <div class="doc-card">
+          <div class="doc-icon">O</div>
+          <h3>Form Pengolahan</h3>
+          <p>Instruksi masak per hidangan lengkap kolom paraf penanggung jawab.</p>
+          <div class="doc-actions">
+            <button class="secondary" data-form="pengolahan" data-format="pdf">PDF</button>
+            <button data-form="pengolahan" data-format="xlsx">Excel</button>
+          </div>
+        </div>
+
+        <div class="doc-card">
+          <div class="doc-icon">M</div>
+          <h3>Form Pemorsian</h3>
+          <p>Jumlah porsi per kategori penerima: Balita, Kecil, Besar, B2.</p>
+          <div class="doc-actions">
+            <button class="secondary" data-form="pemorsian" data-format="pdf">PDF</button>
+            <button data-form="pemorsian" data-format="xlsx">Excel</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer class="site-footer">Dibuat untuk tim dapur SPPG Pemalang Mulyoharjo 4 · Data diproses di browser, tidak dikirim ke server manapun.</footer>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
