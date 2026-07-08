@@ -16,7 +16,14 @@ const KATEGORI = [
 ];
 
 const SPPG_NAME = 'SPPG PEMALANG MULYOHARJO 4';
-const STORAGE_KEY = 'sppg_menu_draft_v1';
+const STORAGE_KEY = 'sppg_menu_draft_v2';
+
+function fmtGram(val, satuan) {
+  const v = (val || '').toString().trim();
+  if (!v) return '';
+  const s = (satuan || '').toString().trim();
+  return s ? `${v} ${s}` : v;
+}
 
 const FORM_META = {
   belanja: {
@@ -24,15 +31,24 @@ const FORM_META = {
     filePrefix: 'Form_Permintaan_Belanja',
     roleLabel: 'Petugas Belanja',
     columns: ['No', 'Hidangan', 'Bahan', 'Jml Kebutuhan', 'Satuan', 'Jml Order', 'Satuan', 'Harga (Rp)', 'Total (Rp)', 'Keterangan'],
-    rowToArray: r => [r.no, r.hidangan, r.bahan, '', '', '', '', '', '', ''],
+    rowToArray: r => [r.no, r.hidangan, r.bahan, '', r.satuan || '', '', '', '', '', r.keterangan || ''],
     includeTambahan: true,
   },
   persiapan: {
     title: 'FORM PERSIAPAN BAHAN',
     filePrefix: 'Form_Persiapan',
     roleLabel: 'Petugas Persiapan',
-    columns: ['No', 'Hidangan', 'Bahan yang Disiapkan', 'Cuci', 'Potong', 'Timbang', 'Keterangan'],
-    rowToArray: r => [r.no, r.hidangan, r.bahan, '\u2610', '\u2610', '\u2610', ''],
+    columns: ['No', 'Hidangan', 'Bahan yang Disiapkan', 'Cuci', 'Potong', 'Timbang', 'Keterangan / Takaran'],
+    rowToArray: r => {
+      const gramInfo = [
+        r.gramasi.balita ? `Balita ${fmtGram(r.gramasi.balita, r.satuan)}` : '',
+        r.gramasi.kecil ? `Kecil ${fmtGram(r.gramasi.kecil, r.satuan)}` : '',
+        r.gramasi.besar ? `Besar ${fmtGram(r.gramasi.besar, r.satuan)}` : '',
+        r.gramasi.b2 ? `B2 ${fmtGram(r.gramasi.b2, r.satuan)}` : '',
+      ].filter(Boolean).join(' | ');
+      const ket = [gramInfo, r.keterangan || ''].filter(Boolean).join(' — ');
+      return [r.no, r.hidangan, r.bahan, '\u2610', '\u2610', '\u2610', ket];
+    },
     includeTambahan: true,
   },
   pengolahan: {
@@ -40,7 +56,7 @@ const FORM_META = {
     filePrefix: 'Form_Pengolahan',
     roleLabel: 'Petugas Pengolahan (Juru Masak)',
     columns: ['No', 'Hidangan', 'Bahan Utama', 'Instruksi Pengolahan', 'Paraf'],
-    rowToArray: r => [r.no, r.hidangan, r.bahan, '', ''],
+    rowToArray: r => [r.no, r.hidangan, r.bahan, r.instruksi || '', ''],
     includeTambahan: false,
   },
   pemorsian: {
@@ -48,17 +64,28 @@ const FORM_META = {
     filePrefix: 'Form_Pemorsian',
     roleLabel: 'Petugas Pemorsian',
     columns: ['No', 'Hidangan', 'Balita', 'Kecil', 'Besar', 'B2', 'Paraf'],
-    rowToArray: r => [r.no, r.hidangan, '', '', '', '', ''],
+    rowToArray: r => [
+      r.no, r.hidangan,
+      fmtGram(r.gramasi.balita, r.satuan),
+      fmtGram(r.gramasi.kecil, r.satuan),
+      fmtGram(r.gramasi.besar, r.satuan),
+      fmtGram(r.gramasi.b2, r.satuan),
+      '',
+    ],
     includeTambahan: false,
   },
 };
 
 /* ============ State ============ */
+function emptyItem() {
+  return { bahan: '', hidangan: '', instruksi: '', gramasi: { balita: '', kecil: '', besar: '', b2: '' }, satuan: '', keterangan: '' };
+}
+
 function defaultState() {
   const hari = {};
   HARI.forEach(h => {
     const items = {};
-    KATEGORI.forEach(k => { items[k.key] = { bahan: '', hidangan: '' }; });
+    KATEGORI.forEach(k => { items[k.key] = emptyItem(); });
     hari[h.key] = { items, tambahan: '' };
   });
   return { mingguKe: '', tanggalSenin: '', hari };
@@ -73,25 +100,50 @@ function loadState() {
       base.mingguKe = parsed.mingguKe || '';
       base.tanggalSenin = parsed.tanggalSenin || '';
       HARI.forEach(h => {
-        if (parsed.hari && parsed.hari[h.key]) {
+        const savedDay = parsed.hari && parsed.hari[h.key];
+        if (savedDay) {
           KATEGORI.forEach(k => {
-            const item = parsed.hari[h.key].items && parsed.hari[h.key].items[k.key];
-            if (item) base.hari[h.key].items[k.key] = { bahan: item.bahan || '', hidangan: item.hidangan || '' };
+            const item = savedDay.items && savedDay.items[k.key];
+            if (item) {
+              base.hari[h.key].items[k.key] = {
+                bahan: item.bahan || '',
+                hidangan: item.hidangan || '',
+                instruksi: item.instruksi || '',
+                gramasi: {
+                  balita: (item.gramasi && item.gramasi.balita) || '',
+                  kecil: (item.gramasi && item.gramasi.kecil) || '',
+                  besar: (item.gramasi && item.gramasi.besar) || '',
+                  b2: (item.gramasi && item.gramasi.b2) || '',
+                },
+                satuan: item.satuan || '',
+                keterangan: item.keterangan || '',
+              };
+            }
           });
-          base.hari[h.key].tambahan = parsed.hari[h.key].tambahan || '';
+          base.hari[h.key].tambahan = savedDay.tambahan || '';
         }
       });
       return base;
     }
-  } catch (e) { /* ignore corrupt draft */ }
+  } catch (e) { /* draf rusak/tidak ada, pakai default */ }
   return defaultState();
 }
 
 function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) { /* storage tidak tersedia */ }
 }
 
 let state = loadState();
+
+function setItemField(dayKey, katKey, field, value) {
+  const item = state.hari[dayKey].items[katKey];
+  if (field.startsWith('gramasi')) {
+    const sub = field.slice('gramasi'.length).toLowerCase();
+    item.gramasi[sub] = value;
+  } else {
+    item[field] = value;
+  }
+}
 
 /* ============ Tanggal ============ */
 function computeDateStr(offset) {
@@ -126,8 +178,7 @@ function renderTabs() {
     panelsEl.appendChild(panel);
   });
 
-  // satu listener paste untuk seluruh minggu, biar bisa tempel lintas hari sekaligus
-  panelsEl.addEventListener('paste', e => handleWeekPaste(e));
+  panelsEl.addEventListener('paste', e => handlePaste(e));
 }
 
 function updateTabDates() {
@@ -142,53 +193,65 @@ function switchDay(dayKey) {
   document.querySelectorAll('.day-panel').forEach(p => p.classList.toggle('active', p.dataset.day === dayKey));
 }
 
+function makeCellInput({ dayKey, katKey, rowIndex, dayIndex, field, value, placeholder, type, extraClass }) {
+  const el = document.createElement(type === 'textarea' ? 'textarea' : 'input');
+  if (type !== 'textarea') el.type = 'text';
+  if (extraClass) el.className = extraClass;
+  el.placeholder = placeholder || '';
+  el.value = value || '';
+  el.dataset.dayIndex = String(dayIndex);
+  el.dataset.rowIndex = String(rowIndex);
+  el.dataset.field = field;
+  el.addEventListener('input', e => {
+    setItemField(dayKey, katKey, field, e.target.value);
+    saveState();
+  });
+  return el;
+}
+
 function buildDayTable(dayKey, dayIndex) {
   const container = document.createElement('div');
+  const scroller = document.createElement('div');
+  scroller.className = 'table-scroll';
 
   const table = document.createElement('table');
-  table.className = 'menu-table';
-  table.innerHTML = '<thead><tr><th>Kategori</th><th>Bahan</th><th>Hidangan</th></tr></thead>';
+  table.className = 'menu-table wide';
+  table.innerHTML = `<thead><tr>
+    <th>Kategori</th><th>Bahan</th><th>Hidangan</th><th>Instruksi Pengolahan</th>
+    <th>Gr. Balita</th><th>Gr. Kecil</th><th>Gr. Besar</th><th>Gr. B2</th><th>Satuan</th><th>Keterangan</th>
+  </tr></thead>`;
   const tbody = document.createElement('tbody');
 
   KATEGORI.forEach((kat, rowIndex) => {
     const tr = document.createElement('tr');
+    const item = state.hari[dayKey].items[kat.key];
 
     const tdKat = document.createElement('td');
     tdKat.textContent = kat.label;
+    tr.appendChild(tdKat);
 
-    const tdBahan = document.createElement('td');
-    const inputBahan = document.createElement('input');
-    inputBahan.type = 'text';
-    inputBahan.placeholder = 'contoh: Ayam Fillet';
-    inputBahan.value = state.hari[dayKey].items[kat.key].bahan;
-    inputBahan.dataset.dayIndex = String(dayIndex);
-    inputBahan.dataset.rowIndex = String(rowIndex);
-    inputBahan.dataset.field = 'bahan';
-    inputBahan.addEventListener('input', e => {
-      state.hari[dayKey].items[kat.key].bahan = e.target.value;
-      saveState();
+    const cells = [
+      { field: 'bahan', value: item.bahan, placeholder: 'Ayam Fillet' },
+      { field: 'hidangan', value: item.hidangan, placeholder: 'Ayam Katsu' },
+      { field: 'instruksi', value: item.instruksi, placeholder: 'cara olah...', type: 'textarea', extraClass: 'cell-instruksi' },
+      { field: 'gramasiBalita', value: item.gramasi.balita, placeholder: '35', extraClass: 'cell-narrow' },
+      { field: 'gramasiKecil', value: item.gramasi.kecil, placeholder: '45', extraClass: 'cell-narrow' },
+      { field: 'gramasiBesar', value: item.gramasi.besar, placeholder: '65', extraClass: 'cell-narrow' },
+      { field: 'gramasiB2', value: item.gramasi.b2, placeholder: '80', extraClass: 'cell-narrow' },
+      { field: 'satuan', value: item.satuan, placeholder: 'GRAM', extraClass: 'cell-narrow' },
+      { field: 'keterangan', value: item.keterangan, placeholder: 'opsional' },
+    ];
+    cells.forEach(c => {
+      const td = document.createElement('td');
+      td.appendChild(makeCellInput({ dayKey, katKey: kat.key, rowIndex, dayIndex, ...c }));
+      tr.appendChild(td);
     });
-    tdBahan.appendChild(inputBahan);
 
-    const tdHid = document.createElement('td');
-    const inputHid = document.createElement('input');
-    inputHid.type = 'text';
-    inputHid.placeholder = 'contoh: Ayam Katsu';
-    inputHid.value = state.hari[dayKey].items[kat.key].hidangan;
-    inputHid.dataset.dayIndex = String(dayIndex);
-    inputHid.dataset.rowIndex = String(rowIndex);
-    inputHid.dataset.field = 'hidangan';
-    inputHid.addEventListener('input', e => {
-      state.hari[dayKey].items[kat.key].hidangan = e.target.value;
-      saveState();
-    });
-    tdHid.appendChild(inputHid);
-
-    tr.append(tdKat, tdBahan, tdHid);
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
-  container.appendChild(table);
+  scroller.appendChild(table);
+  container.appendChild(scroller);
 
   const label = document.createElement('label');
   label.textContent = 'Bahan tambahan / bumbu (satu bahan per baris)';
@@ -206,54 +269,78 @@ function buildDayTable(dayKey, dayIndex) {
 }
 
 /**
- * Tempel (paste) data dari file Buku Menu (sheet SIKLUS MENU) langsung ke web.
- * Format sumbernya tetap: 5 baris kategori (Makanan Pokok, Lauk Hewani, Lauk Nabati,
- * Sayur, Buah) x kolom berpasangan Bahan-Hidangan per hari (Senin, Selasa, ...).
- *
- * Klik kotak Bahan di hari & kategori mana pun sebagai titik awal, lalu paste.
- * Data menyebar ke bawah (kategori) dan ke samping (Bahan → Hidangan → hari berikutnya)
- * persis mengikuti susunan sel yang di-copy dari Excel — jadi satu minggu penuh
- * (10 kolom: Bahan-Hidangan x Senin-Jumat) bisa ditempel sekaligus dalam satu paste.
+ * Satu handler paste, dua mode otomatis:
+ * - 2 kolom  -> mode "SIKLUS MENU": Bahan+Hidangan, bisa menyebar lintas hari (10 kolom = 5 hari x 2).
+ * - >=4 kolom -> mode "STANDART_M1/M2": kolom B:K (Bahan, Hidangan, Instruksi, [Bahan detail-diabaikan],
+ *   Gramasi Balita/Kecil/Besar/B2, Satuan, Keterangan) dari 5 baris utama satu hari (skip baris bumbu).
+ *   Mode ini hanya mengisi hari tempat kamu klik pertama kali (tidak menyebar ke hari lain).
  */
-function handleWeekPaste(e) {
+function handlePaste(e) {
   const target = e.target;
-  if (!target.matches('input[type="text"]') || target.dataset.dayIndex === undefined) return;
+  if (!(target.matches('input[type="text"]') || target.tagName === 'TEXTAREA') || target.dataset.dayIndex === undefined) return;
 
   const text = (e.clipboardData || window.clipboardData).getData('text');
-  if (!text || !/\t|\n/.test(text)) return; // paste satu nilai saja, biarkan perilaku default
+  if (!text || !/\t|\n/.test(text)) return;
+
+  const rows = text.replace(/\r/g, '').split('\n')
+    .filter((row, idx, arr) => !(idx === arr.length - 1 && row === ''));
+  const firstRowCols = rows[0].split('\t');
 
   e.preventDefault();
 
   const startDay = parseInt(target.dataset.dayIndex, 10);
   const startRow = parseInt(target.dataset.rowIndex, 10);
-  const startFieldCol = target.dataset.field === 'bahan' ? 0 : 1;
+
+  if (firstRowCols.length >= 4) {
+    pasteRichDay(rows, startDay, startRow);
+  } else {
+    pasteWeekSimple(rows, startDay, startRow, target.dataset.field === 'bahan' ? 0 : 1);
+  }
+
+  saveState();
+  showToast('Menu berhasil ditempel.');
+}
+
+function applyField(dayIdx, rIdx, field, rawVal) {
+  if (rIdx >= KATEGORI.length || dayIdx >= HARI.length) return;
+  const katKey = KATEGORI[rIdx].key;
+  const dayKey = HARI[dayIdx].key;
+  const val = (rawVal || '').trim();
+  setItemField(dayKey, katKey, field, val);
+  const inputEl = document.querySelector(
+    `[data-day-index="${dayIdx}"][data-row-index="${rIdx}"][data-field="${field}"]`
+  );
+  if (inputEl) inputEl.value = val;
+}
+
+function pasteWeekSimple(rows, startDay, startRow, startFieldCol) {
   const startAbsCol = startDay * 2 + startFieldCol;
-
-  const rows = text.replace(/\r/g, '').split('\n')
-    .filter((row, idx, arr) => !(idx === arr.length - 1 && row === ''));
-
   rows.forEach((rowStr, i) => {
     const rIdx = startRow + i;
-    if (rIdx >= KATEGORI.length) return; // di luar 5 kategori, diabaikan
-    const katKey = KATEGORI[rIdx].key;
+    if (rIdx >= KATEGORI.length) return;
     const cols = rowStr.split('\t');
     cols.forEach((val, j) => {
       const absCol = startAbsCol + j;
       const dayIdx = Math.floor(absCol / 2);
-      if (dayIdx >= HARI.length) return; // lewat Jumat (misal ikut ke-copy kolom Sabtu), diabaikan
       const field = absCol % 2 === 0 ? 'bahan' : 'hidangan';
-      const dayKey = HARI[dayIdx].key;
-      const cleanVal = val.trim();
-      state.hari[dayKey].items[katKey][field] = cleanVal;
-      const inputEl = document.querySelector(
-        `input[data-day-index="${dayIdx}"][data-row-index="${rIdx}"][data-field="${field}"]`
-      );
-      if (inputEl) inputEl.value = cleanVal;
+      applyField(dayIdx, rIdx, field, val);
     });
   });
+}
 
-  saveState();
-  showToast('Menu berhasil ditempel.');
+const RICH_FIELD_ORDER = ['bahan', 'hidangan', 'instruksi', null, 'gramasiBalita', 'gramasiKecil', 'gramasiBesar', 'gramasiB2', 'satuan', 'keterangan'];
+
+function pasteRichDay(rows, dayIdx, startRow) {
+  rows.forEach((rowStr, i) => {
+    const rIdx = startRow + i;
+    if (rIdx >= KATEGORI.length) return;
+    const cols = rowStr.split('\t');
+    cols.forEach((val, j) => {
+      const field = RICH_FIELD_ORDER[j];
+      if (!field) return;
+      applyField(dayIdx, rIdx, field, val);
+    });
+  });
 }
 
 /* ============ Bangun baris data per form ============ */
@@ -265,12 +352,28 @@ function buildRows(formKey, dayState) {
     const bahan = (item.bahan || '').trim();
     const hidangan = (item.hidangan || '').trim();
     if (bahan || hidangan) {
-      rows.push({ no: no++, hidangan: hidangan || '-', bahan: bahan || '-' });
+      rows.push({
+        no: no++,
+        hidangan: hidangan || '-',
+        bahan: bahan || '-',
+        instruksi: item.instruksi || '',
+        gramasi: { ...item.gramasi },
+        satuan: item.satuan || '',
+        keterangan: item.keterangan || '',
+      });
     }
   });
   if (FORM_META[formKey].includeTambahan) {
     (dayState.tambahan || '').split('\n').map(s => s.trim()).filter(Boolean).forEach(line => {
-      rows.push({ no: no++, hidangan: '-', bahan: line });
+      rows.push({
+        no: no++,
+        hidangan: '-',
+        bahan: line,
+        instruksi: '',
+        gramasi: { balita: '', kecil: '', besar: '', b2: '' },
+        satuan: '',
+        keterangan: '',
+      });
     });
   }
   return rows;
@@ -350,7 +453,7 @@ function writeLetterhead(ws, title, day, colCount) {
     else if (i === 4) cell.font = { bold: true, size: 13, underline: true };
     else cell.font = { size: 10 };
   });
-  return lines.length + 2; // baris kosong setelah kop, siap untuk tabel
+  return lines.length + 2;
 }
 
 function writeTable(ws, columns, bodyArrays, startRow) {
@@ -375,11 +478,13 @@ function writeTable(ws, columns, bodyArrays, startRow) {
 
   columns.forEach((c, i) => {
     const col = ws.getColumn(i + 1);
+    const cl = c.toLowerCase();
     if (i === 0) col.width = 6;
-    else if (c.toLowerCase().includes('hidangan')) col.width = 24;
-    else if (c.toLowerCase().includes('bahan')) col.width = 26;
-    else if (c.toLowerCase().includes('instruksi')) col.width = 40;
-    else col.width = 14;
+    else if (cl.includes('hidangan')) col.width = 22;
+    else if (cl.includes('bahan')) col.width = 24;
+    else if (cl.includes('instruksi')) col.width = 45;
+    else if (cl.includes('keterangan')) col.width = 30;
+    else col.width = 13;
   });
 
   return startRow + 1 + bodyArrays.length;
@@ -487,7 +592,7 @@ function generatePdf(meta, daysData) {
       startY: 128,
       head: [meta.columns],
       body: day.rows.map(r => meta.rowToArray(r)),
-      styles: { fontSize: 8.5, cellPadding: 5, valign: 'middle', lineColor: [220, 216, 198], lineWidth: 0.5 },
+      styles: { fontSize: 8, cellPadding: 4, valign: 'middle', lineColor: [220, 216, 198], lineWidth: 0.5 },
       headStyles: { fillColor: [43, 93, 78], textColor: 255, fontStyle: 'bold', halign: 'center' },
       margin: { left: 40, right: 40 },
       theme: 'grid',
