@@ -122,9 +122,12 @@ function renderTabs() {
     const panel = document.createElement('div');
     panel.className = 'day-panel' + (idx === 0 ? ' active' : '');
     panel.dataset.day = h.key;
-    panel.appendChild(buildDayTable(h.key));
+    panel.appendChild(buildDayTable(h.key, idx));
     panelsEl.appendChild(panel);
   });
+
+  // satu listener paste untuk seluruh minggu, biar bisa tempel lintas hari sekaligus
+  panelsEl.addEventListener('paste', e => handleWeekPaste(e));
 }
 
 function updateTabDates() {
@@ -139,7 +142,7 @@ function switchDay(dayKey) {
   document.querySelectorAll('.day-panel').forEach(p => p.classList.toggle('active', p.dataset.day === dayKey));
 }
 
-function buildDayTable(dayKey) {
+function buildDayTable(dayKey, dayIndex) {
   const container = document.createElement('div');
 
   const table = document.createElement('table');
@@ -147,7 +150,7 @@ function buildDayTable(dayKey) {
   table.innerHTML = '<thead><tr><th>Kategori</th><th>Bahan</th><th>Hidangan</th></tr></thead>';
   const tbody = document.createElement('tbody');
 
-  KATEGORI.forEach(kat => {
+  KATEGORI.forEach((kat, rowIndex) => {
     const tr = document.createElement('tr');
 
     const tdKat = document.createElement('td');
@@ -158,6 +161,9 @@ function buildDayTable(dayKey) {
     inputBahan.type = 'text';
     inputBahan.placeholder = 'contoh: Ayam Fillet';
     inputBahan.value = state.hari[dayKey].items[kat.key].bahan;
+    inputBahan.dataset.dayIndex = String(dayIndex);
+    inputBahan.dataset.rowIndex = String(rowIndex);
+    inputBahan.dataset.field = 'bahan';
     inputBahan.addEventListener('input', e => {
       state.hari[dayKey].items[kat.key].bahan = e.target.value;
       saveState();
@@ -169,6 +175,9 @@ function buildDayTable(dayKey) {
     inputHid.type = 'text';
     inputHid.placeholder = 'contoh: Ayam Katsu';
     inputHid.value = state.hari[dayKey].items[kat.key].hidangan;
+    inputHid.dataset.dayIndex = String(dayIndex);
+    inputHid.dataset.rowIndex = String(rowIndex);
+    inputHid.dataset.field = 'hidangan';
     inputHid.addEventListener('input', e => {
       state.hari[dayKey].items[kat.key].hidangan = e.target.value;
       saveState();
@@ -194,6 +203,57 @@ function buildDayTable(dayKey) {
   container.appendChild(textarea);
 
   return container;
+}
+
+/**
+ * Tempel (paste) data dari file Buku Menu (sheet SIKLUS MENU) langsung ke web.
+ * Format sumbernya tetap: 5 baris kategori (Makanan Pokok, Lauk Hewani, Lauk Nabati,
+ * Sayur, Buah) x kolom berpasangan Bahan-Hidangan per hari (Senin, Selasa, ...).
+ *
+ * Klik kotak Bahan di hari & kategori mana pun sebagai titik awal, lalu paste.
+ * Data menyebar ke bawah (kategori) dan ke samping (Bahan → Hidangan → hari berikutnya)
+ * persis mengikuti susunan sel yang di-copy dari Excel — jadi satu minggu penuh
+ * (10 kolom: Bahan-Hidangan x Senin-Jumat) bisa ditempel sekaligus dalam satu paste.
+ */
+function handleWeekPaste(e) {
+  const target = e.target;
+  if (!target.matches('input[type="text"]') || target.dataset.dayIndex === undefined) return;
+
+  const text = (e.clipboardData || window.clipboardData).getData('text');
+  if (!text || !/\t|\n/.test(text)) return; // paste satu nilai saja, biarkan perilaku default
+
+  e.preventDefault();
+
+  const startDay = parseInt(target.dataset.dayIndex, 10);
+  const startRow = parseInt(target.dataset.rowIndex, 10);
+  const startFieldCol = target.dataset.field === 'bahan' ? 0 : 1;
+  const startAbsCol = startDay * 2 + startFieldCol;
+
+  const rows = text.replace(/\r/g, '').split('\n')
+    .filter((row, idx, arr) => !(idx === arr.length - 1 && row === ''));
+
+  rows.forEach((rowStr, i) => {
+    const rIdx = startRow + i;
+    if (rIdx >= KATEGORI.length) return; // di luar 5 kategori, diabaikan
+    const katKey = KATEGORI[rIdx].key;
+    const cols = rowStr.split('\t');
+    cols.forEach((val, j) => {
+      const absCol = startAbsCol + j;
+      const dayIdx = Math.floor(absCol / 2);
+      if (dayIdx >= HARI.length) return; // lewat Jumat (misal ikut ke-copy kolom Sabtu), diabaikan
+      const field = absCol % 2 === 0 ? 'bahan' : 'hidangan';
+      const dayKey = HARI[dayIdx].key;
+      const cleanVal = val.trim();
+      state.hari[dayKey].items[katKey][field] = cleanVal;
+      const inputEl = document.querySelector(
+        `input[data-day-index="${dayIdx}"][data-row-index="${rIdx}"][data-field="${field}"]`
+      );
+      if (inputEl) inputEl.value = cleanVal;
+    });
+  });
+
+  saveState();
+  showToast('Menu berhasil ditempel.');
 }
 
 /* ============ Bangun baris data per form ============ */
